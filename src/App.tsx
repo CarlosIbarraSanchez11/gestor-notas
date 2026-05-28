@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './App.css';
 
 interface Note {
@@ -26,18 +26,130 @@ function App() {
   const colors = ['#fef3f0', '#f0f8f6', '#f5f3ff', '#fffbf0', '#f0f4ff'];
   const categories = ['Personal', 'Trabajo', 'Ideas', 'Tareas', 'Otros'];
 
+  // Notas de ejemplo
+  const exampleNotes: Note[] = [
+    {
+      id: '001',
+      title: 'Reunión con el equipo de desarrollo',
+      content: 'Discutir el roadmap para Q2. Temas: nuevas features, mejoras de rendimiento, y refactoring de código. Próxima reunión: 15 de junio.',
+      createdAt: new Date('2026-05-20'),
+      updatedAt: new Date('2026-05-25'),
+      color: '#f0f8f6',
+      category: 'Trabajo',
+      isFavorite: true,
+    },
+    {
+      id: '002',
+      title: 'Bug crítico - Modo oscuro',
+      content: 'El toggle de modo oscuro no persiste correctamente en algunos navegadores. Prioridad: ALTA. Asignado a: Carlos',
+      createdAt: new Date('2026-05-22'),
+      updatedAt: new Date('2026-05-26'),
+      color: '#fffbf0',
+      category: 'Tareas',
+      isFavorite: true,
+    },
+    {
+      id: '003',
+      title: 'Ideas para nuevas features',
+      content: '- Exportar notas como PDF\n- Sincronización en la nube\n- Colaboración en tiempo real\n- Recordatorios automáticos\n- Etiquetas para mejor organización',
+      createdAt: new Date('2026-05-18'),
+      updatedAt: new Date('2026-05-24'),
+      color: '#fef3f0',
+      category: 'Ideas',
+      isFavorite: false,
+    },
+    {
+      id: '004',
+      title: 'Aprendizaje - React Hooks',
+      content: 'Hoy aprendí sobre useMemo y useCallback para optimizar rendimiento. Casos de uso: listas grandes, funciones en props. Revisar docs oficiales.',
+      createdAt: new Date('2026-05-19'),
+      updatedAt: new Date('2026-05-19'),
+      color: '#f5f3ff',
+      category: 'Personal',
+      isFavorite: false,
+    },
+    {
+      id: '005',
+      title: 'Tareas pendientes - Mayo',
+      content: '✅ Crear repositorio en GitHub\n✅ Agregar modo oscuro\n⏳ Desplegar en Netlify\n⏳ Escribir documentación\n⏳ Hacer código review',
+      createdAt: new Date('2026-05-21'),
+      updatedAt: new Date('2026-05-26'),
+      color: '#f0f4ff',
+      category: 'Tareas',
+      isFavorite: false,
+    },
+    {
+      id: '006',
+      title: 'Configuración de ESLint y Prettier',
+      content: 'Configurar ESLint para TypeScript, agregar Prettier para formato automático. Comandos: npm run lint, npm run format',
+      createdAt: new Date('2026-05-17'),
+      updatedAt: new Date('2026-05-23'),
+      color: '#fef3f0',
+      category: 'Trabajo',
+      isFavorite: false,
+    },
+    {
+      id: '007',
+      title: '💡 Idea: Modo colaborativo',
+      content: 'Permitir que múltiples usuarios editen notas en tiempo real. Usar WebSockets o Firebase. ¿Vale la pena? Depende de la comunidad.',
+      createdAt: new Date('2026-05-23'),
+      updatedAt: new Date('2026-05-23'),
+      color: '#fffbf0',
+      category: 'Ideas',
+      isFavorite: true,
+    },
+    {
+      id: '008',
+      title: 'Plan de despliegue a producción',
+      content: 'Pasos:\n1. Build: npm run build\n2. Test: npm run test\n3. Deploy en Vercel\n4. Configurar dominio personalizado\n5. Monitoreo con Sentry',
+      createdAt: new Date('2026-05-24'),
+      updatedAt: new Date('2026-05-26'),
+      color: '#f0f8f6',
+      category: 'Trabajo',
+      isFavorite: false,
+    },
+    {
+      id: '009',
+      title: 'Notas personales - Reflexión',
+      content: 'Hoy fue un día productivo. Logré terminar la integración de categorías y favoritos. Próxima meta: implementar exportación a PDF. ¡Vamos!',
+      createdAt: new Date('2026-05-25'),
+      updatedAt: new Date('2026-05-25'),
+      color: '#f5f3ff',
+      category: 'Personal',
+      isFavorite: false,
+    },
+    {
+      id: '010',
+      title: 'Revisión de código - App.tsx',
+      content: 'Puntos a mejorar:\n- Validación de inputs más robusta\n- Usar crypto.randomUUID() para IDs\n- Agregar useMemo para filtros\n- Manejo de errores en localStorage',
+      createdAt: new Date('2026-05-26'),
+      updatedAt: new Date('2026-05-26'),
+      color: '#f0f4ff',
+      category: 'Tareas',
+      isFavorite: true,
+    },
+  ];
+
   // Cargar datos del localStorage
   useEffect(() => {
     const savedNotes = localStorage.getItem('notes');
     const savedDarkMode = localStorage.getItem('darkMode');
     
     if (savedNotes) {
-      const parsed = JSON.parse(savedNotes).map((note: any) => ({
-        ...note,
-        createdAt: new Date(note.createdAt),
-        updatedAt: new Date(note.updatedAt),
-      }));
-      setNotes(parsed);
+      try {
+        const parsed = JSON.parse(savedNotes).map((note: any) => ({
+          ...note,
+          createdAt: new Date(note.createdAt),
+          updatedAt: new Date(note.updatedAt),
+        }));
+        setNotes(parsed);
+      } catch (error) {
+        console.error('Error al cargar notas:', error);
+        setNotes(exampleNotes);
+      }
+    } else {
+      // Si no hay notas guardadas, cargar ejemplos
+      setNotes(exampleNotes);
     }
     
     if (savedDarkMode) {
@@ -62,7 +174,10 @@ function App() {
 
   // Crear o actualizar nota
   const handleSave = () => {
-    if (!title.trim() && !content.trim()) return;
+    if (!title.trim() && !content.trim()) {
+      alert('Por favor escribe algo en la nota');
+      return;
+    }
 
     const now = new Date();
     const category = newCategory || selectedNote?.category || 'Otros';
@@ -84,7 +199,7 @@ function App() {
       );
     } else {
       const newNote: Note = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         title: title || 'Sin título',
         content,
         createdAt: now,
@@ -126,19 +241,21 @@ function App() {
     }
   };
 
-  // Filtrar notas
-  const filteredNotes = notes.filter((note) => {
-    const matchesSearch =
-      note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory =
-      selectedCategory === 'todos' || note.category === selectedCategory;
-    
-    const matchesFavorite = !showOnlyFavorites || note.isFavorite;
-    
-    return matchesSearch && matchesCategory && matchesFavorite;
-  });
+  // Filtrar notas con useMemo
+  const filteredNotes = useMemo(() => {
+    return notes.filter((note) => {
+      const matchesSearch =
+        note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        note.content.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCategory =
+        selectedCategory === 'todos' || note.category === selectedCategory;
+      
+      const matchesFavorite = !showOnlyFavorites || note.isFavorite;
+      
+      return matchesSearch && matchesCategory && matchesFavorite;
+    });
+  }, [notes, searchTerm, selectedCategory, showOnlyFavorites]);
 
   return (
     <div className="app" data-theme={darkMode ? 'dark' : 'light'}>
