@@ -8,6 +8,8 @@ interface Note {
   createdAt: Date;
   updatedAt: Date;
   color: string;
+  category: string;
+  isFavorite: boolean;
 }
 
 function App() {
@@ -16,18 +18,30 @@ function App() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [colors] = useState(['#fef3f0', '#f0f8f6', '#f5f3ff', '#fffbf0', '#f0f4ff']);
+  const [darkMode, setDarkMode] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('todos');
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
+  
+  const colors = ['#fef3f0', '#f0f8f6', '#f5f3ff', '#fffbf0', '#f0f4ff'];
+  const categories = ['Personal', 'Trabajo', 'Ideas', 'Tareas', 'Otros'];
 
-  // Cargar notas del localStorage
+  // Cargar datos del localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('notes');
-    if (saved) {
-      const parsed = JSON.parse(saved).map((note: any) => ({
+    const savedNotes = localStorage.getItem('notes');
+    const savedDarkMode = localStorage.getItem('darkMode');
+    
+    if (savedNotes) {
+      const parsed = JSON.parse(savedNotes).map((note: any) => ({
         ...note,
         createdAt: new Date(note.createdAt),
         updatedAt: new Date(note.updatedAt),
       }));
       setNotes(parsed);
+    }
+    
+    if (savedDarkMode) {
+      setDarkMode(JSON.parse(savedDarkMode));
     }
   }, []);
 
@@ -36,16 +50,35 @@ function App() {
     localStorage.setItem('notes', JSON.stringify(notes));
   }, [notes]);
 
+  // Guardar modo oscuro en localStorage
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    if (darkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }, [darkMode]);
+
   // Crear o actualizar nota
   const handleSave = () => {
     if (!title.trim() && !content.trim()) return;
 
     const now = new Date();
+    const category = newCategory || selectedNote?.category || 'Otros';
+    
     if (selectedNote) {
       setNotes(
         notes.map((note) =>
           note.id === selectedNote.id
-            ? { ...note, title: title || 'Sin título', content, updatedAt: now }
+            ? { 
+                ...note, 
+                title: title || 'Sin título', 
+                content, 
+                updatedAt: now,
+                category,
+                isFavorite: selectedNote.isFavorite
+              }
             : note
         )
       );
@@ -57,6 +90,8 @@ function App() {
         createdAt: now,
         updatedAt: now,
         color: colors[Math.floor(Math.random() * colors.length)],
+        category: category,
+        isFavorite: false,
       };
       setNotes([newNote, ...notes]);
     }
@@ -68,6 +103,7 @@ function App() {
     setSelectedNote(null);
     setTitle('');
     setContent('');
+    setNewCategory('');
   };
 
   // Eliminar nota
@@ -78,20 +114,43 @@ function App() {
     }
   };
 
+  // Toggle favorito
+  const toggleFavorite = (id: string) => {
+    setNotes(
+      notes.map((note) =>
+        note.id === id ? { ...note, isFavorite: !note.isFavorite } : note
+      )
+    );
+    if (selectedNote?.id === id) {
+      setSelectedNote({ ...selectedNote, isFavorite: !selectedNote.isFavorite });
+    }
+  };
+
   // Filtrar notas
-  const filteredNotes = notes.filter(
-    (note) =>
+  const filteredNotes = notes.filter((note) => {
+    const matchesSearch =
       note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      note.content.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesCategory =
+      selectedCategory === 'todos' || note.category === selectedCategory;
+    
+    const matchesFavorite = !showOnlyFavorites || note.isFavorite;
+    
+    return matchesSearch && matchesCategory && matchesFavorite;
+  });
 
   return (
-    <div className="app">
+    <div className="app" data-theme={darkMode ? 'dark' : 'light'}>
       <div className="sidebar">
         <div className="sidebar-header">
-          <h1>Mis Notas</h1>
-          <button className="btn-new" onClick={handleNewNote}>
-            + Nueva
+          <h1>📝 Mis Notas</h1>
+          <button 
+            className="btn-theme" 
+            onClick={() => setDarkMode(!darkMode)}
+            title={darkMode ? 'Modo claro' : 'Modo oscuro'}
+          >
+            {darkMode ? '☀️' : '🌙'}
           </button>
         </div>
 
@@ -103,22 +162,66 @@ function App() {
           onChange={(e) => setSearchTerm(e.target.value)}
         />
 
+        <div className="category-filter">
+          <label className="filter-label">📂 Categorías:</label>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="category-select"
+          >
+            <option value="todos">Todas</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          className={`btn-favorites ${showOnlyFavorites ? 'active' : ''}`}
+          onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+        >
+          ⭐ {showOnlyFavorites ? 'Mostrar todas' : 'Solo favoritas'}
+        </button>
+
+        <button className="btn-new" onClick={handleNewNote}>
+          + Nueva Nota
+        </button>
+
         <div className="notes-list">
           {filteredNotes.length === 0 ? (
-            <p className="empty-state">No hay notas aún</p>
+            <p className="empty-state">No hay notas</p>
           ) : (
             filteredNotes.map((note) => (
               <div
                 key={note.id}
                 className={`note-item ${selectedNote?.id === note.id ? 'active' : ''}`}
                 style={{ backgroundColor: note.color }}
-                onClick={() => {
-                  setSelectedNote(note);
-                  setTitle(note.title);
-                  setContent(note.content);
-                }}
               >
-                <div className="note-item-title">{note.title}</div>
+                <div className="note-item-header">
+                  <div
+                    className="note-item-title"
+                    onClick={() => {
+                      setSelectedNote(note);
+                      setTitle(note.title);
+                      setContent(note.content);
+                      setNewCategory(note.category);
+                    }}
+                  >
+                    {note.title}
+                  </div>
+                  <button
+                    className={`btn-favorite-star ${note.isFavorite ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(note.id);
+                    }}
+                  >
+                    {note.isFavorite ? '⭐' : '☆'}
+                  </button>
+                </div>
+                <div className="note-item-category">{note.category}</div>
                 <div className="note-item-preview">{note.content.substring(0, 50)}</div>
                 <div className="note-item-date">
                   {note.updatedAt.toLocaleDateString('es-ES')}
@@ -139,23 +242,46 @@ function App() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+            
+            <select
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              className="editor-category"
+            >
+              <option value="">Selecciona categoría</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+
             <textarea
               placeholder="Escribe tu nota aquí..."
               className="editor-content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
+            
             <div className="editor-actions">
               <button className="btn-save" onClick={handleSave}>
                 💾 Guardar
               </button>
               {selectedNote && (
-                <button
-                  className="btn-delete"
-                  onClick={() => handleDelete(selectedNote.id)}
-                >
-                  🗑️ Eliminar
-                </button>
+                <>
+                  <button
+                    className={`btn-favorite ${selectedNote.isFavorite ? 'active' : ''}`}
+                    onClick={() => toggleFavorite(selectedNote.id)}
+                  >
+                    {selectedNote.isFavorite ? '⭐ Favorita' : '☆ Marcar favorita'}
+                  </button>
+                  <button
+                    className="btn-delete"
+                    onClick={() => handleDelete(selectedNote.id)}
+                  >
+                    🗑️ Eliminar
+                  </button>
+                </>
               )}
             </div>
           </>
